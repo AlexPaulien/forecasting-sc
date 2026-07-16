@@ -1,0 +1,19 @@
+# Données brutes — ne jamais commiter
+data/raw/
+data/processed/
+
+# Environnement Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# MLflow
+mlruns/
+
+# OS
+.DS_Store
