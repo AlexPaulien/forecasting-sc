@@ -4,6 +4,7 @@ data/processed/
 
 # Environnement Python
 venv/
+venv311/
 __pycache__/
 *.pyc
 *.pyo
