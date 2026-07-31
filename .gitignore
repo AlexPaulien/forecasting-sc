@@ -1,6 +1,7 @@
 # Données brutes — ne jamais commiter
 data/raw/
 data/processed/
+*.csv
 
 # Environnement Python
 venv/
