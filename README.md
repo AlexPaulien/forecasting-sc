@@ -36,7 +36,7 @@ The pipeline expects a single file (`train` + `store` already merged, filtered o
 `Open == 1 & Sales > 0`). From the preparation notebook:
 
 ```python
-df["StateHoliday"] = df["StateHoliday"].astype(str)   # mixed types leads to issues with Parquet
+df["StateHoliday"] = df["StateHoliday"].astype(str)   # mixed types lead to issues with Parquet
 df.to_parquet("data/rossmann.parquet")
 ```
 
