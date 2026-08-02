@@ -65,11 +65,19 @@ def make_fold(df, asof, origin, candidate_origins, horizon=HORIZON, margin=True)
     te = make_training_frame(df, [origin], horizon, asof)
     assert tr["Date"].max() < origin < te["Date"].min(), f"overflow to {origin.date()}"
     return tr, te
+
+
+def categorical_levels(df):
+    """Category to integer mapping, frozen on all data.
+    Sorted to ensure that train and service use the same encoding."""
+    return {c: {v: i for i, v in enumerate(sorted(df[c].astype(str).unique()))}
+            for c in CATEGORICAL}
  
  
-def prep(d, categorical_levels):
+def prep(d, cat_maps):
     """
-    Add target date-related features and freeze the categorical level
+    Add target date-related features and freeze the categorical level using integers.
+    Those integers makes the use of MLflow easier
     (compute once for all the date to ensure we get the same encoding for every fold and set)
     """
     d = d.copy()
@@ -77,9 +85,6 @@ def prep(d, categorical_levels):
     d["day"] = d["Date"].dt.day
     d["weekofyear"] = d["Date"].dt.isocalendar().week.astype(int)
     for c in CATEGORICAL:
-        d[c] = pd.Categorical(d[c].astype(str), categories=categorical_levels[c])
+        # -1 potentially unknown categories while using service
+        d[c] = d[c].astype(str).map(cat_maps[c]).fillna(-1).astype("int32")
     return d
- 
- 
-def categorical_levels(df):
-    return {c: pd.Index(sorted(df[c].astype(str).unique())) for c in CATEGORICAL}
