@@ -88,6 +88,9 @@ def build_inference_frame(df, calendar, asof, cat_maps, features,
     tgt["h"] = (tgt["Date"] - origin).dt.days
     tgt["h_week"] = np.ceil(tgt["h"] / 7).astype(int)
 
+    # keep the actual id from the data, instead of prep encoding of store into an integer
+    tgt["store_id"] = tgt["Store"]
+
     tgt = prep(tgt, cat_maps)
     return tgt, origin, horizon
 
@@ -102,8 +105,11 @@ def predict(model, df, calendar, asof, cat_maps, features,
 
     log_pred = model.predict(tgt[features])
     tgt["sales"] = np.clip(np.expm1(log_pred), 0, None)
-    
-    out = tgt[["Store", "Date", "h", "sales"]].sort_values(["Store", "Date"])
+
+    # store_id = actual id of the store in the original data (not the encoding
+    # store_id to be used for display and merge (to avoid merging the two wrong stores)
+    out = tgt[["store_id", "Date", "h", "sales"]].rename(columns={"store_id": "Store"})
+    out = out.sort_values(["Store", "Date"])
 
     # backtest demo: join actuals when it is known
     actual = df[["Store", "Date", "Sales"]].rename(columns={"Sales": "actual"})
