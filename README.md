@@ -72,3 +72,74 @@ D+1→D+42), which overlays the degradation curves across runs.
 >   opens an empty store.
 > - The path is **relative**: launching the UI from any directory other than the one
 >   containing `mlflow.db` will show no runs.
+
+
+## Serving — FastAPI prediction API
+
+The service model (see *Training & experiment tracking*) is exposed through a
+FastAPI endpoint. Feature reconstruction at inference mirrors the training
+pipeline exactly (same `snapshot_at`, same categorical encoding), so there is no
+train/serve skew.
+
+### Run the API locally
+
+From the project root:
+
+```bash
+pip install fastapi uvicorn
+uvicorn src.api:app --reload
+```
+
+The model is loaded **once at startup** from the MLflow Registry
+(`models:/rossmann_forecaster/latest`), not per request. Startup takes a few
+seconds while as-of features are computed over the full history.
+
+Auto-generated interactive docs: http://localhost:8000/docs
+Predicted vs Actuals dataviz: http://localhost:8000/
+
+### Endpoints
+
+`GET /health` — liveness check, returns the loaded model URI and feature count.
+
+`POST /predict` — day-by-day forecast from a past origin, compared against the
+actuals (interactive backtest). All body fields are optional:
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `store` | int | all stores | rejected (400) if unknown |
+| `horizon` | int | 42 | bounded 1..42 (training domain) |
+| `origin` | str (YYYY-MM-DD) | latest usable date | must leave 42 days of actuals for comparison |
+
+Example request:
+
+```json
+{ "store": 5, "horizon": 3, "origin": "2014-11-01" }
+```
+
+Response — one row per (store, open day), with predicted `sales` and observed
+`actual` side by side:
+
+```json
+{
+  "origin": "2014-11-01",
+  "horizon": 3,
+  "n": 2,
+  "predictions": [
+    { "Store": 5, "Date": "2014-11-03", "h": 2, "sales": 7857.5, "actual": 8274 },
+    { "Store": 5, "Date": "2014-11-04", "h": 3, "sales": 6372.5, "actual": 6836 }
+  ]
+}
+```
+
+Only 2 days retrieved because "2014-11-02" was a closed day.
+
+### Design notes
+
+- **Backtest demo, not live forecasting.** Origins are restricted to the past so
+  that actuals exist and predictions can be verified against them on the same
+  chart. In a production setting the target-date calendar (promotions, holidays)
+  would come from a planned business calendar rather than historical data.
+- Closed days (e.g. Sundays) are absent from the output, so `n` can be lower than
+  `horizon` — expected, not a bug.
+- Out-of-range parameters are rejected with HTTP 400/422 rather than silently
+  extrapolating beyond the model's trained horizon.

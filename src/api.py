@@ -17,8 +17,13 @@ from .data import categorical_levels
 from .predict import predict, aggregate_national, PredictError
 from .config import VARIANTS, HORIZON
 
-DATA_PATH = "data/rossmann.parquet"
-MODEL_URI = "models:/rossmann_forecaster/latest"
+import os
+
+DATA_PATH = os.environ.get("DATA_PATH", "data/rossmann.parquet")
+# container: MODEL_PATH points to the exportation folder
+# local environement: MODEL_PATH points to MLflow model registry
+MODEL_PATH = os.environ.get("MODEL_PATH", "")
+MODEL_URI = MODEL_PATH if MODEL_PATH else "models:/rossmann_forecaster/latest"
 
 app = FastAPI(title="Rossmann forecaster", version="1.0")
 
