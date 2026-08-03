@@ -6,13 +6,15 @@ testing UI : http://localhost:8000/docs
 """
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import mlflow.pyfunc
 
 from .serve_model import load_data
 from .features import build_asof_features
 from .data import categorical_levels
-from .predict import predict, PredictError
+from .predict import predict, aggregate_national, PredictError
 from .config import VARIANTS, HORIZON
 
 DATA_PATH = "data/rossmann.parquet"
@@ -32,6 +34,12 @@ class PredictRequest(BaseModel):
     store: int | None = Field(None, description="single store ; all")
     horizon: int | None = Field(None, ge=1, le=HORIZON, description=f"1..{HORIZON}")
     origin: str | None = Field(None, description="origin date YYYY-MM-DD ; default = most recent")
+    aggregate: bool = Field(False, description="sum of National sales by date instead of store level detail")
+
+
+@app.get("/")
+def index():
+    return FileResponse("static/index.html")
 
 
 @app.get("/health")
@@ -49,11 +57,15 @@ def predict_endpoint(req: PredictRequest):
     except PredictError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    if req.aggregate:
+        out = aggregate_national(out)
+
     out = out.copy()
     out["Date"] = out["Date"].dt.strftime("%Y-%m-%d")
     return {
         "origin": str(origin.date()),
         "horizon": horizon,
+        "aggregated": req.aggregate,
         "n": len(out),
         "predictions": out.to_dict(orient="records"),
     }

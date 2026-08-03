@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rossmann forecaster — backtest demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --ink:#1a2b3c; --muted:#6b7a8d; --line:#d8dee6; --accent:#2f6df6; --actual:#e0662f; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           color: var(--ink); margin: 0; padding: 2rem; max-width: 960px; }
+    h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+    p.sub { color: var(--muted); margin: 0 0 1.5rem; font-size: .9rem; }
+    .controls { display: flex; gap: 1rem; flex-wrap: wrap; align-items: end;
+                padding: 1rem; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 1.5rem; }
+    label { display: block; font-size: .75rem; color: var(--muted); margin-bottom: .25rem; }
+    input { padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 6px; font-size: .9rem; width: 130px; }
+    button { padding: .55rem 1.1rem; border: none; border-radius: 6px; background: var(--accent);
+             color: white; font-size: .9rem; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    .meta { font-size: .8rem; color: var(--muted); margin-bottom: .75rem; min-height: 1.1rem; }
+    .error { color: #c0392b; }
+    canvas { border: 1px solid var(--line); border-radius: 10px; padding: .5rem; }
+  </style>
+</head>
+<body>
+  <h1>Rossmann demand forecaster</h1>
+  <p class="sub">Interactive backtest — national totals, predicted vs actual over the horizon.</p>
+
+  <div class="controls">
+    <div>
+      <label for="origin">Origin date</label>
+      <input type="date" id="origin" value="2015-01-01">
+    </div>
+    <div>
+      <label for="horizon">Horizon (days)</label>
+      <input type="number" id="horizon" value="42" min="1" max="42">
+    </div>
+    <button id="run">Forecast</button>
+  </div>
+
+  <div class="meta" id="meta"></div>
+  <canvas id="chart" height="140"></canvas>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let chart;
+
+    async function run() {
+      const btn = $("run"); btn.disabled = true;
+      $("meta").className = "meta"; $("meta").textContent = "Loading…";
+      try {
+        const body = {
+          origin: $("origin").value || null,
+          horizon: parseInt($("horizon").value) || null,
+          aggregate: true
+        };
+        const res = await fetch("/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || ("HTTP " + res.status));
+        }
+        const data = await res.json();
+        draw(data);
+        $("meta").textContent =
+          `Origin ${data.origin} · horizon ${data.horizon} · ${data.n} days`;
+      } catch (e) {
+        $("meta").className = "meta error";
+        $("meta").textContent = "⚠ " + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function draw(data) {
+      const labels = data.predictions.map(r => r.Date);
+      const pred = data.predictions.map(r => r.sales);
+      const actual = data.predictions.map(r => r.actual);
+      if (chart) chart.destroy();
+      chart = new Chart($("chart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "Predicted", data: pred, borderColor: "#2f6df6",
+              backgroundColor: "transparent", tension: .2, pointRadius: 2 },
+            { label: "Actual", data: actual, borderColor: "#e0662f",
+              backgroundColor: "transparent", tension: .2, pointRadius: 2, borderDash: [5,4] }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: "index", intersect: false },
+          scales: { y: { title: { display: true, text: "Total sales (€)" }, beginAtZero: true } },
+          plugins: { legend: { position: "top" } }
+        }
+      });
+    }
+
+    $("run").addEventListener("click", run);
+    run();  // premier tracé au chargement
+  </script>
+</body>
+</html>

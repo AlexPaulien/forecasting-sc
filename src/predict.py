@@ -116,3 +116,14 @@ def predict(model, df, calendar, asof, cat_maps, features,
     out = out.merge(actual, on=["Store", "Date"], how="left")
 
     return out.reset_index(drop=True), origin, horizon
+
+
+def aggregate_national(out):
+    """view all stores : sum of sales by date (total predictions vs actuals).
+    n_stores count open stores on a given day."""
+    agg = out.groupby("Date").agg(
+        sales=("sales", "sum"),
+        actual=("actual", "sum"),
+        n_stores=("Store", "nunique"),
+    ).reset_index()
+    return agg.sort_values("Date").reset_index(drop=True)
