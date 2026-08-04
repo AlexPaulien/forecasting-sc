@@ -5,7 +5,7 @@ End-to-end demand forecasting project on retail sales data (Rossmann dataset).
 ## Abstract
 
 GCP bactest demo: https://rossmann-forecaster-541488693264.europe-west1.run.app
-![Backtest screenshot](img/Screenshot 2026-08-03 at 15.43.23.png)
+<img src="img/Screenshot 2026-08-03 at 15.43.23.png" alt="Backtest screenshot" width="700">
 
 ## Problem & Methodology
 ## Architecture
