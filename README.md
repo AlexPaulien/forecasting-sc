@@ -43,16 +43,26 @@ We constructed the training set by building, for each target, feature as (moving
 
 Rossmann CSV ──► feature engineering ──► LightGBM (direct multi-horizon)
 (train+store) (as-of snapshots) │
+
 ▼
+
 MLflow tracking + Model Registry
+
 │
+
 export standalone model/
+
 ▼
+
 FastAPI ◄──── model loaded once at startup
 /predict + front │
+
 ▼
+
 Docker image (self-contained)
+
 ▼
+
 Cloud Run (public demo)
 
 ## LightGBM
