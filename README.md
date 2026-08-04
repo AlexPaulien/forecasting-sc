@@ -2,7 +2,9 @@
 
 End-to-end demand forecasting project on retail sales data (Rossmann dataset).
 
-## Abstract
+## About
+
+End-to-end demand forecasting for 1115 stores using the Rossmann dataset: 42-day forecasting horizon, predictions served through a live API with live backtest hosted on GCP Cloud Run.
 
 GCP bactest demo: https://rossmann-forecaster-541488693264.europe-west1.run.app
 <img src="img/Screenshot 2026-08-03 at 15.43.23.png" alt="Backtest screenshot" width="700">
@@ -12,34 +14,35 @@ GCP bactest demo: https://rossmann-forecaster-541488693264.europe-west1.run.app
 ## Results
 ## Technicals
 
+### Stack
 Python · Prophet · LightGBM · MLflow · FastAPI · Docker · GCP Cloud Run
 
-## Structure
+### Structure
 - `notebooks/` — EDA, feature engineering, model benchmark
 - `src/` — reusable modules (features, models)
 - `api/` — FastAPI serving (coming)
 
-## Setup
+### Setup
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Data
+### Data
 Download from [Kaggle Rossmann competition](https://www.kaggle.com/competitions/rossmann-store-sales/data) and place in `data/raw/`.
 
 
-## Training & experiment tracking (MLflow)
+### Training & experiment tracking (MLflow)
 
-### Setup
+#### Setup
 
 ```bash
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Prepare the data
+#### Prepare the data
 
 The pipeline expects a single file (`train` + `store` already merged, filtered on
 `Open == 1 & Sales > 0`). From the preparation notebook:
@@ -49,7 +52,7 @@ df["StateHoliday"] = df["StateHoliday"].astype(str)   # mixed types lead to issu
 df.to_parquet("data/rossmann.parquet")
 ```
 
-### Run a tracked backtest
+#### Run a tracked backtest
 
 From the project root (`forecasting-sc/`):
 
@@ -62,7 +65,7 @@ python -m src.train --data data/rossmann.parquet --variant all      # both, back
 Each run creates an MLflow run (params, WMAPE / bias / FVA per horizon bucket, feature
 importance as an artifact). Tracking is stored locally in `mlflow.db`.
 
-### Open the MLflow UI
+#### Open the MLflow UI
 
 **From a separate terminal, at the project root** (where `mlflow.db` lives):
 
@@ -83,14 +86,14 @@ D+1→D+42), which overlays the degradation curves across runs.
 >   containing `mlflow.db` will show no runs.
 
 
-## Serving — FastAPI prediction API
+### Serving — FastAPI prediction API
 
 The service model (see *Training & experiment tracking*) is exposed through a
 FastAPI endpoint. Feature reconstruction at inference mirrors the training
 pipeline exactly (same `snapshot_at`, same categorical encoding), so there is no
 train/serve skew.
 
-### Run the API locally
+#### Run the API locally
 
 From the project root:
 
@@ -106,7 +109,7 @@ seconds while as-of features are computed over the full history.
 Auto-generated interactive docs: http://localhost:8000/docs
 Predicted vs Actuals dataviz: http://localhost:8000/
 
-### Endpoints
+#### Endpoints
 
 `GET /health` — liveness check, returns the loaded model URI and feature count.
 
@@ -142,7 +145,7 @@ Response — one row per (store, open day), with predicted `sales` and observed
 
 Only 2 days retrieved because "2014-11-02" was a closed day.
 
-### Design notes
+#### Design notes
 
 - **Backtest demo, not live forecasting.** Origins are restricted to the past so
   that actuals exist and predictions can be verified against them on the same
@@ -154,13 +157,13 @@ Only 2 days retrieved because "2014-11-02" was a closed day.
   extrapolating beyond the model's trained horizon.
 
 
-## Containerized deployment (Docker)
+### Containerized deployment (Docker)
 
 The API and its front-end are packaged into a single self-contained image. The
 model is loaded from a local exported folder (no MLflow backend / SQLite needed
 at runtime), so the container is fully standalone.
 
-### Export the service model
+#### Export the service model
 
 Ahead of the build, export the registered model from MLflow into a standalone
 `model/` folder:
@@ -173,7 +176,7 @@ This downloads `models:/rossmann_forecaster/latest` into `./model/`, which the
 container loads directly by path. Re-run it whenever a new model version should
 be shipped. The folder is gitignored (regenerable from the Registry).
 
-### Build the image
+#### Build the image
 
 ```bash
 docker build -t rossmann-forecaster .
@@ -186,7 +189,7 @@ Notes:
 - `.dockerignore` keeps the build context small (excludes `venv/`, `mlflow.db`,
   `mlruns/`, notebooks).
 
-### Run locally
+#### Run locally
 
 ```bash
 docker run -p 8000:8000 rossmann-forecaster
@@ -195,7 +198,7 @@ docker run -p 8000:8000 rossmann-forecaster
 Then open http://localhost:8000/ — the front-end and API behave exactly as under
 `uvicorn`, this time served from the container with the model loaded from `./model`.
 
-### Configuration
+#### Configuration
 
 The image reads two environment variables (with sensible defaults):
 
@@ -210,7 +213,7 @@ environment, and the server binds `0.0.0.0` so it is reachable from outside the
 container.
 
 
-## Cloud deployment (Google Cloud Run)
+### Cloud deployment (Google Cloud Run)
 
 The container is deployed to Cloud Run as a public, serverless service. Cloud Run
 builds the image from the `Dockerfile` (via Cloud Build), pushes it to Artifact
@@ -218,7 +221,7 @@ Registry, and serves it — all from a single command.
 
 **Live demo:** https://rossmann-forecaster-541488693264.europe-west1.run.app
 
-### One-time GCP setup
+#### One-time GCP setup
 
 ```bash
 gcloud auth login
@@ -230,7 +233,7 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregi
 
 Set a budget alert (Billing > Budgets & alerts) before deploying just in case although GCP free tier should be enough to run this demo.
 
-### Deploy
+#### Deploy
 
 Export the standalone model first (if not already done), then deploy from source:
 
@@ -257,7 +260,7 @@ Flag rationale:
 | `--timeout 300` | leaves room for a slow first boot (model load + feature build) |
 | `--region europe-west1` | close to target users; Cloud Run's free tier applies in every region |
 
-### `.gcloudignore` trap
+#### `.gcloudignore` trap
 
 `--source` uploads the project directory to Cloud Build. With no `.gcloudignore`,
 gcloud falls back to `.gitignore` — and since `model/` is gitignored (regenerable
@@ -273,7 +276,7 @@ gcloud meta list-files-for-upload | grep model
 
 The `model/` files must appear in the output.
 
-### Notes
+#### Notes
 
 - **Cold starts.** With no traffic, Cloud Run scales to zero. The next request
   triggers a full boot (model load + feature build), adding a few seconds of
