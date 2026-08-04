@@ -30,6 +30,7 @@ We first build a naive baseline (using averages) against which we put to test se
 - autoETS
 - Prophet
 - LightGBM
+
 This model benchmark was done on a single reference store and LightGBM ended up outperforming the other ones although Prophet did well too. Here are the results from that single store benchmark:
 <img src="img/21a178cb-0a5e-4908-8131-610c948245e9.png" alt="Model benchmark" width="700">
 
