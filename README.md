@@ -2,8 +2,17 @@
 
 End-to-end demand forecasting project on retail sales data (Rossmann dataset).
 
-## Stack
-Python · Prophet · LightGBM · NeuralForecast (TFT) · MLflow · FastAPI · Docker · GCP Cloud Run
+## Abstract
+
+GCP bactest demo: https://rossmann-forecaster-541488693264.europe-west1.run.app
+![Backtest screenshot](/img/Screenshot 2026-08-03 at 15.43.23.png)
+
+## Problem & Methodology
+## Architecture
+## Results
+## Technicals
+
+Python · Prophet · LightGBM · MLflow · FastAPI · Docker · GCP Cloud Run
 
 ## Structure
 - `notebooks/` — EDA, feature engineering, model benchmark
