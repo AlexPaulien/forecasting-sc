@@ -34,9 +34,16 @@ We first build a naive baseline (using averages) against which we put to test se
 This model benchmark was done on a single reference store and LightGBM ended up outperforming the other ones although Prophet did well too. Here are the results from that single store benchmark:
 <img src="img/21a178cb-0a5e-4908-8131-610c948245e9.png" alt="Model benchmark" width="700">
 
+From there we picked LightGBM as our algorithm of choice and use it to build a multi-store forecasting system. We used direct forecasting (i.e. predictions are to be made on the full forecasting horizon at once) as recursive forecasting (i.e. predictions made one period at a time and used to predict the following period) would introduce too much noise on a 42 period horizon.
+
+We also went for a walk-forward forecasting algorithm to mimic what would happen in real life whereby you build new forecasts every month (or week, or days) using more historical data each time. The overall logic of the walk-forward algorithm is to look at different "origin" date, build the model with all data available at and before the origin and test the model on data that comes after the origin.
+
+We constructed the training set buy building, for each target, feature as (moving averages, ratios) as known at the origin (or last snapshot before the origin should the origin be a closed day). The model was trained using WMAPE across 6 rolling monthly origins. Each fold trains only on data preceeding its forecast origin, mirroring how a deplan planner reforecast every cycle. No random train/test split which would leak future information in a time series.
 
 ## Architecture
 
+
+## LightGBM
 
 
 ## Results
