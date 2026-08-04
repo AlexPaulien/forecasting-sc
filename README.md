@@ -10,8 +10,38 @@ GCP bactest demo: https://rossmann-forecaster-541488693264.europe-west1.run.app
 <img src="img/Screenshot 2026-08-03 at 15.43.23.png" alt="Backtest screenshot" width="700">
 
 ## Problem & Methodology
+
+### Problem statement
+
+We want to build a forecasting model to predict up to the sales amount for up to 42 days ahead. The data is comprised of 1115 Rossmann stores with dayly sales recorded from Jan 1st 2013 to July 31st 2015.
+
+### Exploratory Data Analysis
+
+EDA (see notebook 1) shows that the distribution of sales is skewed to that right whereas the log distribution of sales is Gaussian. We will therefore train our models on log(sales).
+
+We also demonstrated that December was a very strong month sales-wise and that there was also a weekly seasonality with Mondays and Sundays being stronger.
+
+Finally, we saw that promotions tended to lift the sales by about 38% on average.
+
+### Methodology
+
+We first build a naive baseline (using averages) against which we put to test several algorithms:
+- autoARIMA
+- autoETS
+- Prophet
+- LightGBM
+This model benchmark was done on a single reference store and LightGBM ended up outperforming the other ones although Prophet did well too. Here are the results from that single store benchmark:
+<img src="img/21a178cb-0a5e-4908-8131-610c948245e9.png" alt="Model benchmark" width="700">
+
+
 ## Architecture
+
+
+
 ## Results
+
+
+
 ## Technicals
 
 ### Stack
