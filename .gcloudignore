@@ -1,0 +1,13 @@
+# does not heritate from gitignore
+# model/ et data/ MUST be uploaded to Cloud Build.
+.git/
+venv/
+venv311/
+__pycache__/
+*.pyc
+mlflow.db
+mlruns/
+mlartifacts/
+notebooks/
+*.csv
+README*.md
