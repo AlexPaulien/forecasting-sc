@@ -143,3 +143,133 @@ Only 2 days retrieved because "2014-11-02" was a closed day.
   `horizon` — expected, not a bug.
 - Out-of-range parameters are rejected with HTTP 400/422 rather than silently
   extrapolating beyond the model's trained horizon.
+
+
+## Containerized deployment (Docker)
+
+The API and its front-end are packaged into a single self-contained image. The
+model is loaded from a local exported folder (no MLflow backend / SQLite needed
+at runtime), so the container is fully standalone.
+
+### Export the service model
+
+Ahead of the build, export the registered model from MLflow into a standalone
+`model/` folder:
+
+```bash
+python src/export_model.py
+```
+
+This downloads `models:/rossmann_forecaster/latest` into `./model/`, which the
+container loads directly by path. Re-run it whenever a new model version should
+be shipped. The folder is gitignored (regenerable from the Registry).
+
+### Build the image
+
+```bash
+docker build -t rossmann-forecaster .
+```
+
+Notes:
+- `libgomp1` is installed for LightGBM (missing it fails at runtime, not build).
+- `requirements.txt` is copied before the source so dependency layers stay cached
+  across code changes.
+- `.dockerignore` keeps the build context small (excludes `venv/`, `mlflow.db`,
+  `mlruns/`, notebooks).
+
+### Run locally
+
+```bash
+docker run -p 8000:8000 rossmann-forecaster
+```
+
+Then open http://localhost:8000/ — the front-end and API behave exactly as under
+`uvicorn`, this time served from the container with the model loaded from `./model`.
+
+### Configuration
+
+The image reads two environment variables (with sensible defaults):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MODEL_PATH` | `/app/model` | standalone model folder; if empty, falls back to the MLflow Registry |
+| `DATA_PATH` | `/app/data/rossmann.parquet` | dataset loaded at startup |
+| `PORT` | `8000` | server port — Cloud Run injects its own `$PORT` |
+
+The same image runs unchanged locally and on a cloud host: `PORT` is read from the
+environment, and the server binds `0.0.0.0` so it is reachable from outside the
+container.
+
+
+## Cloud deployment (Google Cloud Run)
+
+The container is deployed to Cloud Run as a public, serverless service. Cloud Run
+builds the image from the `Dockerfile` (via Cloud Build), pushes it to Artifact
+Registry, and serves it — all from a single command.
+
+**Live demo:** https://rossmann-forecaster-541488693264.europe-west1.run.app
+
+### One-time GCP setup
+
+```bash
+gcloud auth login
+gcloud projects create <PROJECT_ID> --name="Rossmann forecaster"
+gcloud config set project <PROJECT_ID>
+gcloud billing projects link <PROJECT_ID> --billing-account=<BILLING_ID>
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+```
+
+Set a budget alert (Billing > Budgets & alerts) before deploying just in case although GCP free tier should be enough to run this demo.
+
+### Deploy
+
+Export the standalone model first (if not already done), then deploy from source:
+
+```bash
+python src/export_model.py
+
+gcloud run deploy rossmann-forecaster \
+  --source . \
+  --region europe-west1 \
+  --allow-unauthenticated \
+  --memory 2Gi \
+  --cpu 1 \
+  --timeout 300 \
+  --port 8080
+```
+
+Flag rationale:
+
+| Flag | Why |
+|---|---|
+| `--source .` | builds from the local Dockerfile via Cloud Build — no manual `docker push` |
+| `--allow-unauthenticated` | public demo, reachable without a GCP login |
+| `--memory 2Gi` | the app loads the dataset and rebuilds as-of features at startup; 512 MB (default) is not enough |
+| `--timeout 300` | leaves room for a slow first boot (model load + feature build) |
+| `--region europe-west1` | close to target users; Cloud Run's free tier applies in every region |
+
+### `.gcloudignore` trap
+
+`--source` uploads the project directory to Cloud Build. With no `.gcloudignore`,
+gcloud falls back to `.gitignore` — and since `model/` is gitignored (regenerable
+from the Registry), it would be **excluded from the upload**, and the Dockerfile's
+`COPY model/` would fail with *"not found in build context"*.
+
+A standalone `.gcloudignore` breaks that inheritance so `model/` and `data/` are
+uploaded even though they stay gitignored. Verify what will be sent:
+
+```bash
+gcloud meta list-files-for-upload | grep model
+```
+
+The `model/` files must appear in the output.
+
+### Notes
+
+- **Cold starts.** With no traffic, Cloud Run scales to zero. The next request
+  triggers a full boot (model load + feature build), adding a few seconds of
+  latency. Acceptable for a demo; precomputing the as-of features into a Parquet
+  file would shorten it.
+- The same image runs unchanged locally (`docker run`) and on Cloud Run — `PORT`
+  is read from the environment and the server binds `0.0.0.0`.
+
