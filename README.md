@@ -48,9 +48,7 @@ Rossmann CSV ──► feature engineering ──► LightGBM (direct multi-hori
 
 MLflow tracking + Model Registry
 
-│
-
-export standalone model/
+│export standalone model/
 
 ▼
 
