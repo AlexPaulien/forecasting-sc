@@ -1,23 +1,22 @@
 # Demand Forecasting — Supply Chain
 
-End-to-end demand forecasting project on retail sales data (Rossmann dataset).
-
 ## About
 
 End-to-end demand forecasting for 1115 stores using the Rossmann dataset: 42-day forecasting horizon, predictions served through a live API with live backtest hosted on GCP Cloud Run.
 
-GCP bactest demo: https://rossmann-forecaster-541488693264.europe-west1.run.app
+GCP backtest demo: https://rossmann-forecaster-541488693264.europe-west1.run.app
 <img src="img/Screenshot 2026-08-03 at 15.43.23.png" alt="Backtest screenshot" width="700">
 
 ## Problem & Methodology
 
 ### Problem statement
 
-We want to build a forecasting model to predict up to the sales amount for up to 42 days ahead. The data is comprised of 1115 Rossmann stores with dayly sales recorded from Jan 1st 2013 to July 31st 2015.
+We want to build a forecasting model to predict the sales amount for up to 42 days ahead. The data is comprised of 1115 Rossmann stores with daily sales recorded from Jan 1st 2013 to July 31st 2015.
 
 ### Exploratory Data Analysis
 
-EDA (see notebook 1) shows that the distribution of sales is skewed to that right whereas the log distribution of sales is Gaussian. We will therefore train our models on log(sales).
+EDA (see notebook 1) shows that the distribution of sales is skewed to the right whereas the log distribution of sales is Gaussian. We will therefore train our models on log(sales).
+<img src="img/6d9bc296-29cb-4f24-941b-2912104d39ad.png" alt="Distribution" width="700">
 
 We also demonstrated that December was a very strong month sales-wise and that there was also a weekly seasonality with Mondays and Sundays being stronger.
 
@@ -38,10 +37,23 @@ From there we picked LightGBM as our algorithm of choice and use it to build a m
 
 We also went for a walk-forward forecasting algorithm to mimic what would happen in real life whereby you build new forecasts every month (or week, or days) using more historical data each time. The overall logic of the walk-forward algorithm is to look at different "origin" date, build the model with all data available at and before the origin and test the model on data that comes after the origin.
 
-We constructed the training set buy building, for each target, feature as (moving averages, ratios) as known at the origin (or last snapshot before the origin should the origin be a closed day). The model was trained using WMAPE across 6 rolling monthly origins. Each fold trains only on data preceeding its forecast origin, mirroring how a deplan planner reforecast every cycle. No random train/test split which would leak future information in a time series.
+We constructed the training set by building, for each target, feature as (moving averages, ratios) as known at the origin (or last snapshot before the origin should the origin be a closed day). The model was trained using WMAPE across 6 rolling monthly origins. Each fold trains only on data preceding its forecast origin, mirroring how a demand planner reforecast every cycle. No random train/test split which would leak future information in a time series.
 
 ## Architecture
 
+Rossmann CSV ──► feature engineering ──► LightGBM (direct multi-horizon)
+(train+store) (as-of snapshots) │
+▼
+MLflow tracking + Model Registry
+│
+export standalone model/
+▼
+FastAPI ◄──── model loaded once at startup
+/predict + front │
+▼
+Docker image (self-contained)
+▼
+Cloud Run (public demo)
 
 ## LightGBM
 
