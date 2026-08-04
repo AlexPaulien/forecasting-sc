@@ -95,7 +95,7 @@ ahead of time.
 
 **Ablation: importance ≠ marginal value.** `sales_ly` (same day last year) dominated
 feature importance — roughly half the total gain, 4.7× the next feature. Yet removing
-it left WMAPE unchanged (net delta ~0.001, within noise). Under collinearity, the
+it left WMAPE unchanged (net delta ~0.001). Under collinearity, the
 calendar features and 91-day mean reconstruct the same annual seasonality. The
 reference model ships **without** `sales_ly`: same accuracy, one less dependency, and
 more robust to moving holidays and new stores. A symmetric case: `asof_mean_7d` jumped
