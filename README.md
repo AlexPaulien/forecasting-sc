@@ -113,7 +113,9 @@ training and at inference, so there is no train/serve skew.
 
 ## LightGBM
 
-LightGBM ([Ke et al., 2017](https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree)), the method we chose after benchmarking, is a Gradient Boosting Decision Tree algorithm to which were added two innovations to help tackle more efficiently large high-dimensional datasets (and thus make it more computationaly effecient without degrading its accuracy):
+This section follows mostly the original LightGBM publication by [Ke et al., 2017](https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree).
+
+LightGBM, the method we chose after benchmarking, is a Gradient Boosting Decision Tree algorithm to which were added two innovations to help tackle more efficiently large high-dimensional datasets (and thus make it more computationaly effecient without degrading its accuracy):
 - Gradient-Based One-Side Sampling (GOSS)
 - Exclusive Feature Bundling (EFB)
 
