@@ -124,25 +124,32 @@ GBDT is an ensemble model composed of decision trees. Those trees (or weak learn
 ### Gradient-Based One-Side Sampling (GOSS)
 
 GOSS allows the algorithm to focus on high-gradient instances (and thus exclude a significant portion of all instances) to make an estimation of the information gain in a given split. An instance with a small gradient is considered well trained and therefore the algorithm focuses on instances with high gradient. GOSS helps reduce the number of instances by:
-- keeping the top X instances based on their gradient (thus retaining high gradient instances)
-- **sampling** Y from the remaining data.
+- keeping the top $a$ instances based on their gradient (thus retaining high gradient instances)
+- **sampling** $b$ from the remaining data.
+
 As this would change the overall distribution, GOSS then multiplies the Y instances with small gradient by a positive constant each it computes the information gain of a split. This allows the algorithm to focus on undertrained (high-gradient) samples while not altering the distribution too much. In GBDT, the information gain is usually measured by the variance after splitting and, for each feature $j$ we look for the splitting value $d$ such as to maximize the variance: 
 
 $$
 d_j^* = argmax_dV_j(d)
 $$
 
-where,
+and,
 
 $$
 V_{j|O}(d) = \frac{1}{n_O}(\frac{(\sum_{x_i \in O:x_{ij}\le d}g_i)^2}{n_{l|O}^j(d)} + \frac{(\sum_{x_i \in O:x_{ij}> d}g_i)^2}{n_{r|O}^j(d)})
 $$
 
+where $O$ is the dataset on a fixed node of the tree, $j$ is the feature selected for a split, and $d$ the value used for the split. When it comes to GOSS we do not use the variance itself, but an approximation of it:
+
+$$
+\sim{V}_{j}(d) = \frac{1}{n}(\frac{(\sum_{x_i \in A_l}g_i + \frac{1-a}{b}\sum_{x_i \in B_l}g_i)^2}{n_l^j(d)} + \frac{1}{n}(\frac{(\sum_{x_i \in A_r}g_i + \frac{1-a}{b}\sum_{x_i \in B_r}g_i)^2}{n_r^j(d)})
+$$
+
+where $A_l = {x_i \in A : x_{ij} \le d}$, $B_r = {x_i \in B : x_{ij} > d}$ and the logic follows for $A_r$ and $B_l$. This determines whether the instances belongs to group A (i.e high gradient instances) or B (sample of small-gradient instances) and on which side of the splitting value $d$, right ($r$) or left ($l$) it lands. We see that $\sim{V}$ is an approximation of $V$ as it uses only a sample $B$ of the small-gradient instances which makes GOSS more computationaly efficient. This small-variance signal being amplified by the positive constant $\frac{1-a}{b}$, the distribution is not altered too much.
+
 ### Exclusive Feature Bundling (EFB)
 
 EFB bundles together mutually exclusive features to reduce the overall number of features the algorithm has to deal with.
-
-
 
 ## Results
 
