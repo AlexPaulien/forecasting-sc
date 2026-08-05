@@ -123,7 +123,7 @@ The new tree $f_t$ is fitted to predict these negative gradients (the
 $\eta$:
  
 $$
-\hat{y}_i^{(t)} = \hat{y}_i^{(t-1)} + \eta \, f_t(x_i)
+\hat{y}_i^{(t)} = \hat{y}_i^{(t-1)} + \eta f_t(x_i)
 $$
  
 For squared error, the gradient is simply proportional to the residual
