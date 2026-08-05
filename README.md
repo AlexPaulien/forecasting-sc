@@ -69,6 +69,27 @@ monthly origins. Each fold trains only on data preceding its forecast origin,
 mirroring how a demand planner re-forecasts every cycle. No random train/test split,
 which would leak future information in a time series.
 
+**Direct multi-horizon.** One model predicts all of D+1…D+42 from features frozen at
+the forecast origin — no recursion, no re-injection of predicted values. Over a 42-day
+horizon, recursive forecasting would compound errors and create a train/serve
+mismatch; the direct approach keeps each horizon independent.
+
+**Features as known at the origin.** Rolling means, ratios and volatility computed on a
+window ending at the origin, then held constant across the 42 targets. The horizon `h`
+is an explicit feature, so the model learns how predictive power decays with distance.
+Calendar features (day of week, promo, holidays) are target-dated — legitimately known
+ahead of time.
+
+**Ablation: importance ≠ marginal value.** `sales_ly` (same day last year) dominated
+feature importance — roughly half the total gain, 4.7× the next feature. Yet removing
+it left WMAPE unchanged (net delta ~0.001). Under collinearity, the calendar features
+and 91-day mean reconstruct the same annual seasonality. The reference model ships
+**without** `sales_ly`: same accuracy, one less dependency, and more robust to moving
+holidays and new stores. A symmetric case: `asof_mean_7d` jumped 14× in importance once
+`sales_ly` was removed — the short-term signal wasn't useless, it was masked. Both a
+redundant top feature and a masked weak one existed in the same model, which is why
+ablation — not importance ranking — drove the final feature set.
+
 ## Architecture
 
 ```
@@ -92,26 +113,36 @@ training and at inference, so there is no train/serve skew.
 
 ## LightGBM
 
-**Direct multi-horizon.** One model predicts all of D+1…D+42 from features frozen at
-the forecast origin — no recursion, no re-injection of predicted values. Over a 42-day
-horizon, recursive forecasting would compound errors and create a train/serve
-mismatch; the direct approach keeps each horizon independent.
+LightGBM, the method we chose after benchmarking, is a Gradient Boosting Decision Tree algorithm to which were added two innovations to help tackle more efficiently large high-dimensional datasets (and thus make it more computationaly effecient without degrading its accuracy):
+- Gradient-Based One-Side Sampling (GOSS)
+- Exclusive Feature Bundling (EFB)
 
-**Features as known at the origin.** Rolling means, ratios and volatility computed on a
-window ending at the origin, then held constant across the 42 targets. The horizon `h`
-is an explicit feature, so the model learns how predictive power decays with distance.
-Calendar features (day of week, promo, holidays) are target-dated — legitimately known
-ahead of time.
+### Gradient Boosting Decision Tree (GBDT)
 
-**Ablation: importance ≠ marginal value.** `sales_ly` (same day last year) dominated
-feature importance — roughly half the total gain, 4.7× the next feature. Yet removing
-it left WMAPE unchanged (net delta ~0.001). Under collinearity, the calendar features
-and 91-day mean reconstruct the same annual seasonality. The reference model ships
-**without** `sales_ly`: same accuracy, one less dependency, and more robust to moving
-holidays and new stores. A symmetric case: `asof_mean_7d` jumped 14× in importance once
-`sales_ly` was removed — the short-term signal wasn't useless, it was masked. Both a
-redundant top feature and a masked weak one existed in the same model, which is why
-ablation — not importance ranking — drove the final feature set.
+GBDT is an ensemble model composed of decision trees. Those trees (or weak learners) are trained in sequence, each by focusing on the residual errors of the previous ones. Trees are grown by finding splits to grow new branches. A split consists in finding a feature as well as a value to split the data into two group within that feature while maximizing the information gain.
+
+### Gradient-Based One-Side Sampling (GOSS)
+
+GOSS allows the algorithm to focus on high-gradient instances (and thus exclude a significant portion of all instances) to make an estimation of the information gain in a given split. An instance with a small gradient is considered well trained and therefore the algorithm focuses on instances with high gradient. GOSS helps reduce the number of instances by:
+- keeping the top X instances based on their gradient (thus retaining high gradient instances)
+- **sampling** Y from the remaining data.
+As this would change the overall distribution, GOSS then multiplies the Y instances with small gradient by a positive constant each it computes the information gain of a split. This allows the algorithm to focus on undertrained (high-gradient) samples while not altering the distribution too much. In GBDT, the information gain is usually measured by the variance after splitting and, for each feature $j$ we look for the splitting value $d$ such as to maximize the variance: 
+
+$$
+d_j^* = argmax_dV_j(d)
+$$
+
+where,
+
+$$
+V_{j|O}(d) = \frac{1}{n_O}(\frac{(\sum_{x_i \in O:x_{ij}\le d}g_i)^2}{n_{l|O}^j(d)} + \frac{(\sum_{x_i \in O:x_{ij}> d}g_i)^2}{n_{r|O}^j(d)})
+$$
+
+### Exclusive Feature Bundling (EFB)
+
+EFB bundles together mutually exclusive features to reduce the overall number of features the algorithm has to deal with.
+
+
 
 ## Results
 
@@ -286,8 +317,8 @@ side by side, plus honest error metrics over the unseen period:
   "aggregated": false,
   "n": 42,
   "predictions": [
-    { "Store": 262, "Date": "2015-06-01", "h": 1, "sales": 24310.2, "actual": 23189 },
-    { "Store": 262, "Date": "2015-06-02", "h": 2, "sales": 22984.6, "actual": 22015 }
+    { "Store": 262, "Date": "2015-06-01", "h": 1, "sales": 24316.9, "actual": 23204 },
+    { "Store": 262, "Date": "2015-06-02", "h": 2, "sales": 23191.1, "actual": 21471 }
   ],
   "metrics": { "wmape": 0.054, "bias": 0.0018, "n_compared": 42 }
 }
