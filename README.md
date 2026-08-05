@@ -98,11 +98,44 @@ more efficiently — making it faster without degrading accuracy:
 - Exclusive Feature Bundling (EFB)
 ### Gradient Boosting Decision Tree (GBDT)
  
-GBDT is an ensemble model composed of decision trees. Those trees (weak learners) are
-trained in sequence, each one focusing on the residual errors (the negative gradients)
-of the previous ones. Trees are built by finding splits to grow new branches: a split
-consists in choosing a feature and a value that divide the data into two groups while
-maximizing the information gain.
+GBDT is an ensemble model that builds an additive sequence of decision trees. Unlike
+bagging methods (e.g. Random Forests) that train trees independently and average them,
+boosting trains trees **sequentially**, each new tree correcting the errors of the
+ensemble built so far.
+ 
+The prediction after $t$ trees is the sum of all trees' outputs:
+ 
+$$
+\hat{y}_i^{(t)} = \sum_{k=1}^{t} f_k(x_i) = \hat{y}_i^{(t-1)} + f_t(x_i)
+$$
+ 
+At each step, we want the new tree $f_t$ to reduce a differentiable loss
+$L(y_i, \hat{y}_i)$ — here the squared error on log-sales. The key idea of *gradient*
+boosting is that the best direction to move the current prediction is the negative
+gradient of the loss with respect to that prediction:
+ 
+$$
+g_i = \frac{\partial L(y_i, \hat{y}_i^{(t-1)})}{\partial \hat{y}_i^{(t-1)}}
+$$
+ 
+The new tree $f_t$ is fitted to predict these negative gradients (the
+"pseudo-residuals"), and is then added to the ensemble, scaled by a learning rate
+$\eta$:
+ 
+$$
+\hat{y}_i^{(t)} = \hat{y}_i^{(t-1)} + \eta \, f_t(x_i)
+$$
+ 
+For squared error, the gradient is simply proportional to the residual
+$y_i - \hat{y}_i$, so each tree literally learns to predict what the previous ensemble
+got wrong — which is the intuition behind "focusing on residuals". The learning rate
+$\eta$ shrinks each tree's contribution: smaller values need more trees but generalize
+better.
+ 
+Each tree is grown by finding **splits** — a feature and a threshold that divide the
+data into two groups so as to maximize the reduction in loss (the *information gain*).
+This is where the gradients $g_i$ reappear: the split quality is measured on them, which
+is exactly what GOSS optimizes below.
  
 ### Gradient-Based One-Side Sampling (GOSS)
  
