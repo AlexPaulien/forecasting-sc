@@ -113,7 +113,7 @@ training and at inference, so there is no train/serve skew.
 
 ## LightGBM
 
-LightGBM, the method we chose after benchmarking, is a Gradient Boosting Decision Tree algorithm to which were added two innovations to help tackle more efficiently large high-dimensional datasets (and thus make it more computationaly effecient without degrading its accuracy):
+LightGBM ([Ke et al., 2017](https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree)), the method we chose after benchmarking, is a Gradient Boosting Decision Tree algorithm to which were added two innovations to help tackle more efficiently large high-dimensional datasets (and thus make it more computationaly effecient without degrading its accuracy):
 - Gradient-Based One-Side Sampling (GOSS)
 - Exclusive Feature Bundling (EFB)
 
@@ -145,7 +145,7 @@ $$
 \sim{V}_{j}(d) = \frac{1}{n}(\frac{(\sum_{x_i \in A_l}g_i + \frac{1-a}{b}\sum_{x_i \in B_l}g_i)^2}{n_l^j(d)} + \frac{1}{n}(\frac{(\sum_{x_i \in A_r}g_i + \frac{1-a}{b}\sum_{x_i \in B_r}g_i)^2}{n_r^j(d)})
 $$
 
-where $A_l = {x_i \in A : x_{ij} \le d}$, $B_r = {x_i \in B : x_{ij} > d}$ and the logic follows for $A_r$ and $B_l$. This determines whether the instances belongs to group A (i.e high gradient instances) or B (sample of small-gradient instances) and on which side of the splitting value $d$, right ($r$) or left ($l$) it lands. We see that $\sim{V}$ is an approximation of $V$ as it uses only a sample $B$ of the small-gradient instances which makes GOSS more computationaly efficient. This small-variance signal being amplified by the positive constant $\frac{1-a}{b}$, the distribution is not altered too much.
+where $A_l = {x_i \in A : x_{ij} \le d}$, $B_r = {x_i \in B : x_{ij} > d}$ and the logic follows for $A_r$ and $B_l$. This determines whether the instances belong to group A (i.e high gradient instances) or B (sample of small-gradient instances) and on which side of the splitting value $d$, right ($r$) or left ($l$) they land. We see that $\sim{V}$ is an approximation of $V$ as it uses only a sample $B$ of the small-gradient instances which makes GOSS more computationaly efficient. This small-variance signal being amplified by the positive constant $\frac{1-a}{b}$, the distribution is not altered too much.
 
 ### Exclusive Feature Bundling (EFB)
 
@@ -479,3 +479,9 @@ The `model/` files must appear in the output.
   for a demo; precomputing the as-of features into a Parquet file would shorten it.
 - The same image runs unchanged locally (`docker run`) and on Cloud Run — `PORT` is
   read from the environment and the server binds `0.0.0.0`.
+
+
+## References
+
+- Ke, G., et al. (2017). *LightGBM: A Highly Efficient Gradient Boosting Decision Tree.*
+  NeurIPS 30. https://papers.nips.cc/paper/6907-lightgbm
