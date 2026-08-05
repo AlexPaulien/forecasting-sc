@@ -10,6 +10,8 @@ leakage in the demonstration.
 
 <img src="img/demo.png" alt="Holdout forecast — predicted vs actual national sales" width="700">
 
+<img src="img/demo2.png" alt="Holdout forecast — predicted vs actual single store" width="700">
+
 > This project separates two notions of "no leakage": the **backtest** (Results
 > section) evaluates without leakage via walk-forward validation, and the **demo**
 > demonstrates without leakage via a holdout model frozen at a training cutoff. Two
