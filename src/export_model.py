@@ -13,7 +13,7 @@ from pathlib import Path
 import mlflow
 from mlflow.artifacts import download_artifacts
  
-DEFAULT_URI = "models:/rossmann_forecaster/latest"
+DEFAULT_URI = "models:/rossmann_forecaster_holdout/latest"
 OUT_DIR = "model"
  
  

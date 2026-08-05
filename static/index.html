@@ -22,6 +22,8 @@
     .meta { font-size: .8rem; color: var(--muted); margin-bottom: .75rem; min-height: 1.1rem; }
     .error { color: #c0392b; }
     canvas { border: 1px solid var(--line); border-radius: 10px; padding: .5rem; }
+    .cutoff-note { font-size: .8rem; color: var(--accent); margin: 0 0 1rem;
+                   padding: .5rem .75rem; background: #f0f5ff; border-radius: 6px; }
   </style>
 </head>
 <body>
@@ -30,8 +32,8 @@
 
   <div class="controls">
     <div>
-      <label for="origin">Origin date</label>
-      <input type="date" id="origin" value="2015-01-01">
+      <label for="store">Store (blank = all)</label>
+      <input type="number" id="store" placeholder="all stores" min="1">
     </div>
     <div>
       <label for="horizon">Horizon (days)</label>
@@ -39,6 +41,8 @@
     </div>
     <button id="run">Forecast</button>
   </div>
+
+  <p class="cutoff-note" id="cutoffNote"></p>
 
   <div class="meta" id="meta"></div>
   <canvas id="chart" height="140"></canvas>
@@ -51,10 +55,11 @@
       const btn = $("run"); btn.disabled = true;
       $("meta").className = "meta"; $("meta").textContent = "Loading…";
       try {
+        const storeVal = $("store").value.trim();
         const body = {
-          origin: $("origin").value || null,
+          store: storeVal ? parseInt(storeVal) : null,
           horizon: parseInt($("horizon").value) || null,
-          aggregate: true
+          aggregate: storeVal === "",   // aggregated if all stores, otherwise store detail
         };
         const res = await fetch("/predict", {
           method: "POST",
@@ -67,8 +72,15 @@
         }
         const data = await res.json();
         draw(data);
-        $("meta").textContent =
-          `Origin ${data.origin} · horizon ${data.horizon} · ${data.n} days`;
+        const scope = storeVal ? `store ${storeVal}` : "all stores (national total)";
+        $("meta").textContent = `${scope} · ${data.n} days from ${data.origin}`;
+        if (data.metrics) {
+          $("meta").textContent += ` · WMAPE ${(data.metrics.wmape*100).toFixed(1)}%` +
+                                   ` · bias ${(data.metrics.bias*100).toFixed(1)}%`;
+        }
+        $("cutoffNote").textContent =
+          `Model trained on data up to ${data.cutoff}. Everything shown is a genuine ` +
+          `forecast of a period the model never saw during training.`;
       } catch (e) {
         $("meta").className = "meta error";
         $("meta").textContent = "⚠ " + e.message;

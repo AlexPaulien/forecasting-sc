@@ -16,6 +16,7 @@ from .features import build_asof_features
 from .data import categorical_levels
 from .predict import predict, aggregate_national, PredictError
 from .config import VARIANTS, HORIZON
+from .backtest import wmape, bias
 
 import os
 
@@ -23,7 +24,8 @@ DATA_PATH = os.environ.get("DATA_PATH", "data/rossmann.parquet")
 # container: MODEL_PATH points to the exportation folder
 # local environement: MODEL_PATH points to MLflow model registry
 MODEL_PATH = os.environ.get("MODEL_PATH", "")
-MODEL_URI = MODEL_PATH if MODEL_PATH else "models:/rossmann_forecaster/latest"
+MODEL_URI = MODEL_PATH if MODEL_PATH else "models:/rossmann_forecaster_holdout/latest"
+DEMO_ORIGIN = os.environ.get("DEMO_ORIGIN", "2015-05-31") # data unseen by the model from 2015-05-31 onwards for honest inference
 
 app = FastAPI(title="Rossmann forecaster", version="1.0")
 
@@ -38,7 +40,6 @@ FEATURES = VARIANTS["no_ly"]
 class PredictRequest(BaseModel):
     store: int | None = Field(None, description="single store ; all")
     horizon: int | None = Field(None, ge=1, le=HORIZON, description=f"1..{HORIZON}")
-    origin: str | None = Field(None, description="origin date YYYY-MM-DD ; default = most recent")
     aggregate: bool = Field(False, description="sum of National sales by date instead of store level detail")
 
 
@@ -57,10 +58,17 @@ def predict_endpoint(req: PredictRequest):
     try:
         out, origin, horizon = predict(
             model, df, df, asof, cat_maps, FEATURES,
-            origin=req.origin, horizon=req.horizon, store=req.store,
+            origin=DEMO_ORIGIN, horizon=req.horizon, store=req.store,
         )
     except PredictError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    valid = out.dropna(subset=["actual"])
+    metrics = {
+        "wmape": round(float(wmape(valid["actual"], valid["sales"])), 4),
+        "bias": round(float(bias(valid["actual"], valid["sales"])), 4),
+        "n_compared": int(len(valid)),
+    } if len(valid) else None
 
     if req.aggregate:
         out = aggregate_national(out)
@@ -70,7 +78,10 @@ def predict_endpoint(req: PredictRequest):
     return {
         "origin": str(origin.date()),
         "horizon": horizon,
+        "cutoff": DEMO_ORIGIN,
         "aggregated": req.aggregate,
         "n": len(out),
         "predictions": out.to_dict(orient="records"),
+        "metrics": metrics,
+        "_debug": "v2",
     }

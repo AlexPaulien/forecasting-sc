@@ -42,7 +42,7 @@ def build_origins(df, horizon=HORIZON, n_test=N_TEST_ORIGINS):
     Builds a grid of potential origins (every 14 days) while keeping the n last monthly origin for testing
     """
     candidate = pd.date_range(
-        start=df["Date"].min() + pd.Timedelta(days=400),   # besoin de 364 j d'historique
+        start=df["Date"].min() + pd.Timedelta(days=400),   # need 364 days of historical data
         end=df["Date"].max() - pd.Timedelta(days=horizon),
         freq="14D",
     )

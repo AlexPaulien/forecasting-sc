@@ -68,6 +68,7 @@ def train_service_model(df, asof, features, num_boost_round=NUM_BOOST_ROUND):
  
 def main():
     p = argparse.ArgumentParser(description="trains and logs service model")
+    p.add_argument("--cutoff", default=None, help="cutoff date to train model only dates before it")
     p.add_argument("--data", required=True)
     p.add_argument("--variant", default="no_ly", choices=list(VARIANTS))
     p.add_argument("--register", action="store_true",
@@ -78,15 +79,27 @@ def main():
     mlflow.set_experiment(EXPERIMENT_NAME)
  
     df = load_data(args.data)
+
+    if args.cutoff:
+        cutoff = pd.to_datetime(args.cutoff)
+        n_before = len(df)
+        df = df[df["Date"] < cutoff].copy()
+        print(f"cutoff {cutoff.date()} : {len(df)}/{n_before} observations kepts for training "
+              f"(dates >= cutoff excluded for training and set aside for testing)")
+
     asof = build_asof_features(df)
     features = VARIANTS[args.variant]
+
+    tag = f"holdout_{args.cutoff}" if args.cutoff else "service"
+    run_name = f"{tag}_{args.variant}"
  
-    with mlflow.start_run(run_name=f"service_{args.variant}"):
-        mlflow.set_tags({**git_info(), "stage": "service"})
+    with mlflow.start_run(run_name=run_name):
+        mlflow.set_tags({**git_info(), "stage": tag})
         mlflow.log_params({
             "variant": args.variant,
             "n_features": len(features),
             "num_boost_round": NUM_BOOST_ROUND,
+            "cutoff": args.cutoff or "none",
             **PARAMS,
         })
         mlflow.log_param("features", ", ".join(features))
@@ -96,16 +109,18 @@ def main():
         # signature : input/output contract that the API must follow.
         preds = np.clip(np.expm1(model.predict(X_sample)), 0, None)
         signature = infer_signature(X_sample, preds)
- 
+
+        model_name = ("rossmann_forecaster_holdout" if args.cutoff else "rossmann_forecaster")
+
         mlflow.lightgbm.log_model(
             model,
             name="model",
             signature=signature,
             input_example=X_sample.head(5),
-            registered_model_name=("rossmann_forecaster" if args.register else None),
+            registered_model_name=(model_name if args.register else None),
         )
  
-        print(f"[service_{args.variant}] modèle logged — {len(features)} features, "
+        print(f"[{run_name}] modèle logged — {len(features)} features, "
               f"{model.num_trees()} trees")
         print("run_id :", mlflow.active_run().info.run_id)
  
