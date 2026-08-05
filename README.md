@@ -123,7 +123,7 @@ In GBDT the information gain of a split is usually measured by the variance redu
 produces. For a feature $j$ we look for the split value $d$ that maximizes it:
  
 $$
-d_j^* = \operatorname*{argmax}_d V_{j|O}(d)
+d_j^* = \arg\max_d V_{j|O}(d)
 $$
  
 with
