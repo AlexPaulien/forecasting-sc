@@ -2,11 +2,18 @@
 
 End-to-end demand forecasting for 1,115 stores using the Rossmann dataset: a 42-day
 forecasting horizon, predictions served through a live API with an interactive
-backtest hosted on GCP Cloud Run.
+inference demo hosted on GCP Cloud Run. The demo shows **genuine forecasts of a period
+the model never saw during training** (on and after May 31st 2015), so there is no data
+leakage in the demonstration.
 
-**Live backtest demo:** https://rossmann-forecaster-541488693264.europe-west1.run.app
+**Live demo:** https://rossmann-forecaster-541488693264.europe-west1.run.app
 
-<img src="img/demo.png" alt="Backtest screenshot — predicted vs actual national sales" width="700">
+<img src="img/demo.png" alt="Holdout forecast — predicted vs actual national sales" width="700">
+
+> This project separates two notions of "no leakage": the **backtest** (Results
+> section) evaluates without leakage via walk-forward validation, and the **demo**
+> demonstrates without leakage via a holdout model frozen at a training cutoff. Two
+> mechanisms, two purposes.
 
 ## Problem & Methodology
 
@@ -21,7 +28,8 @@ July 31st 2015.
 EDA (see notebook 1) shows that the distribution of sales is skewed to the right,
 whereas the log distribution of sales is Gaussian. We therefore train our models on
 log(sales).
-<img src="img/distribution.png" alt="Distribution" width="700">
+
+<img src="img/distribution.png" alt="Sales distribution" width="700">
 
 We also found that December is a very strong month sales-wise, and that there is a
 weekly seasonality with Mondays and Sundays being stronger. Finally, promotions lift
@@ -95,13 +103,13 @@ ahead of time.
 
 **Ablation: importance ≠ marginal value.** `sales_ly` (same day last year) dominated
 feature importance — roughly half the total gain, 4.7× the next feature. Yet removing
-it left WMAPE unchanged (net delta ~0.001). Under collinearity, the
-calendar features and 91-day mean reconstruct the same annual seasonality. The
-reference model ships **without** `sales_ly`: same accuracy, one less dependency, and
-more robust to moving holidays and new stores. A symmetric case: `asof_mean_7d` jumped
-14× in importance once `sales_ly` was removed — the short-term signal wasn't useless,
-it was masked. Both a redundant top feature and a masked weak one existed in the same
-model, which is why ablation — not importance ranking — drove the final feature set.
+it left WMAPE unchanged (net delta ~0.001). Under collinearity, the calendar features
+and 91-day mean reconstruct the same annual seasonality. The reference model ships
+**without** `sales_ly`: same accuracy, one less dependency, and more robust to moving
+holidays and new stores. A symmetric case: `asof_mean_7d` jumped 14× in importance once
+`sales_ly` was removed — the short-term signal wasn't useless, it was masked. Both a
+redundant top feature and a masked weak one existed in the same model, which is why
+ablation — not importance ranking — drove the final feature set.
 
 ## Results
 
@@ -127,6 +135,9 @@ information in a time series.
 - Bias stays contained (+0.3 to +6 %); no Duan smearing correction needed despite the
   `log1p`/`expm1` transform.
 
+The live demo reports a national WMAPE of ~10 % on the holdout period (June–July 2015),
+consistent with these backtest numbers — a genuine out-of-sample check.
+
 ## Technicals
 
 ### Stack
@@ -136,7 +147,7 @@ Python · Prophet · LightGBM · MLflow · FastAPI · Docker · GCP Cloud Run
 ### Structure
 
 - `notebooks/` — EDA, feature engineering, model benchmark, production model
-- `src/` — reusable modules (features, data, backtest, train, api, predict, serve_model)
+- `src/` — reusable modules (features, data, backtest, train, api, predict, serve_model, export_model)
 - `static/` — single-page front-end (Chart.js)
 - `Dockerfile`, `.gcloudignore` — containerization & deployment
 
@@ -180,6 +191,23 @@ python -m src.train --data data/rossmann.parquet --variant all      # both, back
 Each run creates an MLflow run (params, WMAPE / bias / FVA per horizon bucket, feature
 importance as an artifact). Tracking is stored locally in `mlflow.db`.
 
+#### Train the served models
+
+Service models are trained on all origins and registered:
+
+```bash
+# full-history model (reference / internal use)
+python -m src.serve_model --data data/rossmann.parquet --variant no_ly --register
+
+# holdout model for the public demo: trained only up to the cutoff,
+# so June-July 2015 is genuinely unseen
+python -m src.serve_model --data data/rossmann.parquet --variant no_ly \
+  --cutoff 2015-05-31 --register
+```
+
+The holdout model registers as `rossmann_forecaster_holdout`; it is the one the demo
+serves.
+
 #### Open the MLflow UI
 
 **From a separate terminal, at the project root** (where `mlflow.db` lives):
@@ -192,7 +220,7 @@ Then open http://127.0.0.1:5000.
 
 To compare variants: select the `rossmann_04_production` experiment, tick the runs you
 want, and click **Compare**. The `wmape` metric is logged by `step` (= horizon week,
-D+1→D+42), which overlays the degradation curves across runs.
+D+1->D+42), which overlays the degradation curves across runs.
 
 > **Two things that cost time:**
 > - The UI must use the **same URI** as training (`sqlite:///mlflow.db`), otherwise it
@@ -204,8 +232,10 @@ D+1→D+42), which overlays the degradation curves across runs.
 
 ### Serving — FastAPI prediction API
 
-Feature reconstruction at inference mirrors the training pipeline exactly (same
-`snapshot_at`, same categorical encoding), so there is no train/serve skew.
+The demo serves the **holdout** model (trained up to 2015-05-31) and forecasts the
+unseen June-July 2015 period. Feature reconstruction at inference mirrors the training
+pipeline exactly (same `snapshot_at`, same categorical encoding), so there is no
+train/serve skew.
 
 #### Run the API locally
 
@@ -216,9 +246,9 @@ pip install fastapi uvicorn
 uvicorn src.api:app --reload
 ```
 
-The model is loaded **once at startup** from the MLflow Registry
-(`models:/rossmann_forecaster/latest`), not per request. Startup takes a few seconds
-while as-of features are computed over the full history.
+The model is loaded **once at startup** (from `MODEL_PATH` if set, otherwise the MLflow
+Registry `models:/rossmann_forecaster_holdout/latest`), not per request. Startup takes
+a few seconds while as-of features are computed over the full history.
 
 - Interactive docs (auto-generated): http://localhost:8000/docs
 - Predicted vs. actual dataviz: http://localhost:8000/
@@ -227,44 +257,50 @@ while as-of features are computed over the full history.
 
 `GET /health` — liveness check, returns the loaded model URI and feature count.
 
-`POST /predict` — day-by-day forecast from a past origin, compared against the actuals
-(interactive backtest). All body fields are optional:
+`POST /predict` — day-by-day forecast from the training cutoff, compared against the
+actuals of the unseen period. The origin is fixed server-side to the cutoff, so the
+request only controls scope and horizon:
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `store` | int | all stores | rejected (400) if unknown |
 | `horizon` | int | 42 | bounded 1..42 (training domain) |
-| `origin` | str (YYYY-MM-DD) | latest usable date | must leave 42 days of actuals for comparison |
+| `aggregate` | bool | false | national daily total instead of per-store detail |
 
 Example request:
 
 ```json
-{ "store": 5, "horizon": 3, "origin": "2014-11-01" }
+{ "store": 262, "horizon": 42 }
 ```
 
 Response — one row per (store, open day), with predicted `sales` and observed `actual`
-side by side:
+side by side, plus honest error metrics over the unseen period:
 
 ```json
 {
-  "origin": "2014-11-01",
-  "horizon": 3,
-  "n": 2,
+  "origin": "2015-05-31",
+  "horizon": 42,
+  "cutoff": "2015-05-31",
+  "aggregated": false,
+  "n": 42,
   "predictions": [
-    { "Store": 5, "Date": "2014-11-03", "h": 2, "sales": 7857.5, "actual": 8274 },
-    { "Store": 5, "Date": "2014-11-04", "h": 3, "sales": 6372.5, "actual": 6836 }
-  ]
+    { "Store": 262, "Date": "2015-06-01", "h": 1, "sales": 24310.2, "actual": 23189 },
+    { "Store": 262, "Date": "2015-06-02", "h": 2, "sales": 22984.6, "actual": 22015 }
+  ],
+  "metrics": { "wmape": 0.054, "bias": 0.0018, "n_compared": 42 }
 }
 ```
 
-Only 2 days are returned here because 2014-11-02 was a closed day.
-
 #### Design notes
 
-- **Backtest demo, not live forecasting.** Origins are restricted to the past so that
-  actuals exist and predictions can be verified on the same chart. In production, the
-  target-date calendar (promotions, holidays) would come from a planned business
-  calendar rather than historical data.
+- **Holdout forecast, no leakage.** The served model is frozen at the 2015-05-31
+  cutoff and forecasts June-July 2015 — a period it never saw during training. The
+  chart therefore shows a genuine out-of-sample forecast, and the reported WMAPE is an
+  honest error, not a memorized fit.
+- **Feature freshness.** As-of features are computed on the full history up to the
+  origin (the cutoff), so the snapshot is fresh; only the *model* is frozen at the
+  cutoff, which matches a production setting where a model trained last cycle forecasts
+  the next one.
 - Closed days (e.g. Sundays) are absent from the output, so `n` can be lower than
   `horizon` — expected, not a bug.
 - Out-of-range parameters are rejected with HTTP 400/422 rather than silently
@@ -278,18 +314,18 @@ The API and its front-end are packaged into a single self-contained image. The m
 is loaded from a local exported folder (no MLflow backend / SQLite needed at runtime),
 so the container is fully standalone.
 
-#### Export the service model
+#### Export the holdout model
 
-Ahead of the build, export the registered model from MLflow into a standalone `model/`
-folder:
+Ahead of the build, export the registered holdout model from MLflow into a standalone
+`model/` folder:
 
 ```bash
-python src/export_model.py
+python src/export_model.py --uri models:/rossmann_forecaster_holdout/latest
 ```
 
-This downloads `models:/rossmann_forecaster/latest` into `./model/`, which the
-container loads directly by path. Re-run it whenever a new model version should be
-shipped. The folder is gitignored (regenerable from the Registry).
+This downloads the model into `./model/`, which the container loads directly by path.
+Re-run it whenever a new model version should be shipped. The folder is gitignored
+(regenerable from the Registry).
 
 #### Build the image
 
@@ -307,11 +343,13 @@ Notes:
 #### Run locally
 
 ```bash
-docker run -p 8000:8000 rossmann-forecaster
+docker run --rm -p 8000:8000 rossmann-forecaster                     # local default port
+docker run --rm -p 8080:8080 -e PORT=8080 rossmann-forecaster        # Cloud Run port
 ```
 
-Then open http://localhost:8000/ — the front-end and API behave exactly as under
-`uvicorn`, this time served from the container with the model loaded from `./model`.
+Then open the matching `http://localhost:<port>/` — the front-end and API behave
+exactly as under `uvicorn`, this time served from the container with the model loaded
+from `./model`.
 
 #### Configuration
 
@@ -321,6 +359,7 @@ The image reads environment variables (with sensible defaults):
 |---|---|---|
 | `MODEL_PATH` | `/app/model` | standalone model folder; if empty, falls back to the MLflow Registry |
 | `DATA_PATH` | `/app/data/rossmann.parquet` | dataset loaded at startup |
+| `DEMO_ORIGIN` | `2015-05-31` | fixed forecast origin (the training cutoff) |
 | `PORT` | `8000` | server port — Cloud Run injects its own `$PORT` |
 
 The same image runs unchanged locally and on a cloud host: `PORT` is read from the
@@ -347,15 +386,15 @@ gcloud billing projects link <PROJECT_ID> --billing-account=<BILLING_ID>
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
 ```
 
-Set a budget alert (Billing → Budgets & alerts) before deploying — the GCP free tier
+Set a budget alert (Billing > Budgets & alerts) before deploying — the GCP free tier
 should be more than enough to run this demo, but it's a cheap safety net.
 
 #### Deploy
 
-Export the standalone model first (if not already done), then deploy from source:
+Export the holdout model first (if not already done), then deploy from source:
 
 ```bash
-python src/export_model.py
+python src/export_model.py --uri models:/rossmann_forecaster_holdout/latest
 
 gcloud run deploy rossmann-forecaster \
   --source . \
