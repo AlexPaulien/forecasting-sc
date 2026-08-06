@@ -98,6 +98,11 @@ more efficiently — making it faster without degrading accuracy:
 - Exclusive Feature Bundling (EFB)
 ### Gradient Boosting Decision Tree (GBDT)
  
+The formulas below follow Friedman's foundational gradient boosting paper
+([Friedman, 2001](https://projecteuclid.org/journals/annals-of-statistics/volume-29/issue-5/Greedy-function-approximation-A-gradient-boosting-machine/10.1214/aos/1013203451.full));
+a more accessible treatment is in *The Elements of Statistical Learning*, ch. 10
+([Hastie, Tibshirani & Friedman, 2009](https://hastie.su.domains/ElemStatLearn/)).
+ 
 GBDT is an ensemble model that builds an additive sequence of decision trees. Unlike
 bagging methods (e.g. Random Forests) that train trees independently and average them,
 boosting trains trees **sequentially**, each new tree correcting the errors of the
@@ -123,7 +128,7 @@ The new tree $f_t$ is fitted to predict these negative gradients (the
 $\eta$:
  
 $$
-\hat{y}_i^{(t)} = \hat{y}_i^{(t-1)} + \eta f_t(x_i)
+\hat{y}_i^{(t)} = \hat{y}_i^{(t-1)} + \eta \, f_t(x_i)
 $$
  
 For squared error, the gradient is simply proportional to the residual
@@ -156,7 +161,7 @@ In GBDT the information gain of a split is usually measured by the variance redu
 produces. For a feature $j$ we look for the split value $d$ that maximizes it:
  
 $$
-d_j^* = \arg\max_d V_{j|O}(d)
+d_j^* = \operatorname*{argmax}_d V_{j|O}(d)
 $$
  
 with
@@ -547,6 +552,12 @@ The `model/` files must appear in the output.
   read from the environment and the server binds `0.0.0.0`.
 ## References
  
+- Friedman, J. H. (2001). *Greedy Function Approximation: A Gradient Boosting Machine.*
+  The Annals of Statistics, 29(5), 1189–1232.
+  https://doi.org/10.1214/aos/1013203451
+- Hastie, T., Tibshirani, R., & Friedman, J. (2009). *The Elements of Statistical
+  Learning: Data Mining, Inference, and Prediction* (2nd ed.), ch. 10. Springer.
+  https://hastie.su.domains/ElemStatLearn/
 - Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., Ye, Q., & Liu, T.-Y. (2017).
   *LightGBM: A Highly Efficient Gradient Boosting Decision Tree.* Advances in Neural
   Information Processing Systems 30.
