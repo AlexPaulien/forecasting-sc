@@ -250,8 +250,7 @@ information in a time series.
 - **Beats the seasonal naïve everywhere except week 1**, where same-day-last-year is a
   hard baseline to beat at very short range. Knowing *where* the model doesn't add
   value is as useful as the headline number.
-- Bias stays contained (+0.3 to +6 %); no Duan smearing correction needed despite the
-  `log1p`/`expm1` transform.
+- Bias stays contained (+0.3 to +6 %); 
 The live demo reports a national WMAPE of ~10 % on the holdout period (June–July 2015),
 consistent with these backtest numbers — a genuine out-of-sample check.
  
