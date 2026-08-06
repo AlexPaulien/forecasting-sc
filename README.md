@@ -96,6 +96,8 @@ more efficiently — making it faster without degrading accuracy:
  
 - Gradient-Based One-Side Sampling (GOSS)
 - Exclusive Feature Bundling (EFB)
+
+
 ### Gradient Boosting Decision Tree (GBDT)
  
 The formulas below follow Friedman's foundational gradient boosting paper
@@ -133,7 +135,7 @@ $$
  
 For squared error, the gradient is simply proportional to the residual
 $y_i - \hat{y}_i$, so each tree literally learns to predict what the previous ensemble
-got wrong — which is the intuition behind "focusing on residuals". The learning rate
+got wrong — which is the intuition behind "focusing on residuals". Each tree added to ensemble reduces the overall error. The learning rate
 $\eta$ shrinks each tree's contribution: smaller values need more trees but generalize
 better.
  
@@ -161,7 +163,7 @@ In GBDT the information gain of a split is usually measured by the variance redu
 produces. For a feature $j$ we look for the split value $d$ that maximizes it:
  
 $$
-d_j^* = \operatorname*{argmax}_d V_{j|O}(d)
+d_j^* = \arg\max_d V_{j|O}(d)
 $$
  
 with
